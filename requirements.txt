@@ -1,0 +1,7 @@
+ccxt==4.5.56
+deepdiff==9.1.0
+faststream[cli, rabbit]==0.6.7
+pydantic-settings==2.14.1
+pytest==9.0.3
+pytest-asyncio==1.4.0
+pytest-dotenv==0.5.2
