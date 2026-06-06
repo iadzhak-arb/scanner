@@ -6,7 +6,7 @@ import ccxt.async_support as ccxt
 
 from tests.mock_data import mock_id, mock_name, mock_markets, mock_orderbook
 from src.core.models import ExchangeDTO, OrderbookDTO, SymbolDTO
-from src.adapters.ccxt import CCXTAdapter, ExchangeError
+from src.adapters.ccxt_adapter import CCXTAdapter, ExchangeError
 
 
 @pytest.fixture

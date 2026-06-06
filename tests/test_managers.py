@@ -5,7 +5,7 @@ import pytest
 from deepdiff import DeepDiff
 
 from core.models import SymbolDTO
-from adapters.ccxt import ExchangeError
+from adapters.ccxt_adapter import ExchangeError
 from services.managers import ExchangeManager, ExchangeProtocol
 from core.models import ExchangeDTO
 
