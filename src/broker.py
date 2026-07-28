@@ -25,8 +25,6 @@ publisher_orderbooks = broker.publisher(queue_orderbooks)
 logger = logging.getLogger('faststream')
 
 
-
-
 async def send_groups(pool: Pool[ExchangeManager]):
     async with pool.get() as manager:
         try:

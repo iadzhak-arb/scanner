@@ -1,10 +1,13 @@
 import datetime as dt
+import logging
 
 import ccxt.async_support as ccxt
 
 from src.config import settings as st
 from src.core.models import ExchangeDTO, SymbolDTO, OrderbookDTO
 from src.core.exceptions import ExchangeError
+
+logger = logging.getLogger(__name__)
 
 
 class CCXTAdapter:
@@ -40,7 +43,7 @@ class CCXTAdapter:
         try:
             response = await self._exchange.fetch_order_book(symbol=symbol.id)
         except ccxt.BadSymbol as e:
-            # TODO log warning
+            logger.warning(e)
             return None
         except ccxt.BaseError as e:
             raise ExchangeError(e)
@@ -52,7 +55,10 @@ class CCXTAdapter:
 
         return OrderbookDTO(
             symbol=symbol,
-            exchange=ExchangeDTO(id=self._exchange.id, name=self._exchange.name),
+            exchange=ExchangeDTO(
+                id=self._exchange.id,
+                name=self._exchange.name
+            ),
             timestamp=response['timestamp'],
             asks=response['asks'],
             bids=response['bids']
@@ -62,5 +68,4 @@ class CCXTAdapter:
         try:
             await self._exchange.close()
         except ccxt.BaseError as e:
-            # TODO log warning
-            pass
+            logger.warning(e)

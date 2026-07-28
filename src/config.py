@@ -23,7 +23,8 @@ class Settings(BaseSettings):
 
     @property
     def rmq_url(self) -> str:
-        return f'amqp://{self.RMQ_USER}:{self.RMQ_PASS}@{self.RMQ_HOST}:{self.RMQ_PORT}'
+        return (f'amqp://{self.RMQ_USER}:{self.RMQ_PASS}@'
+                f'{self.RMQ_HOST}:{self.RMQ_PORT}')
 
     model_config = SettingsConfigDict(env_file='.env')
 
