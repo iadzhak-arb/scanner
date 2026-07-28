@@ -14,6 +14,7 @@ from src.utils import Pool
 
 app = FastStream(broker)
 logger = logging.getLogger('faststream')
+_background_tasks: list[asyncio.Task] = []
 
 
 @app.on_startup
@@ -58,8 +59,16 @@ async def after_startup(
     await broker.declare_queue(queue_orderbooks)
     queue = await broker.declare_queue(queue_groups)
     if publish:
-        asyncio.create_task(publish_task(pool, queue))
+        task = asyncio.create_task(publish_task(pool, queue))
+        _background_tasks.append(task)
 
+
+@app.on_shutdown
+async def cancel_tasks():
+    for task in _background_tasks:
+        task.cancel()
+    await asyncio.gather(*_background_tasks, return_exceptions=True)
+    _background_tasks.clear()
 
 @app.after_shutdown
 async def after_shutdown(managers: Annotated[list[ExchangeManager], Context()]):

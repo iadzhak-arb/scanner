@@ -6,6 +6,7 @@ from faststream import Context, Logger
 from faststream.exceptions import StopApplication
 from faststream.rabbit import RabbitBroker, Channel, RabbitQueue
 
+
 from src.core.exceptions import ExchangeError
 from src.core.models import SymbolGroupDTO
 from src.services.managers import ExchangeManager
@@ -24,6 +25,8 @@ publisher_orderbooks = broker.publisher(queue_orderbooks)
 logger = logging.getLogger('faststream')
 
 
+
+
 async def send_groups(pool: Pool[ExchangeManager]):
     async with pool.get() as manager:
         try:
@@ -35,8 +38,6 @@ async def send_groups(pool: Pool[ExchangeManager]):
         except ExchangeError as e:
             logger.exception(e)
             raise StopApplication()
-        except asyncio.CancelledError:
-            pass
 
 
 @broker.subscriber(queue_groups)

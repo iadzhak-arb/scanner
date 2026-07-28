@@ -1,78 +1,140 @@
 # Arb Scanner
 
-Arb Scanner — это асинхронное приложение на Python для поиска арбитражных возможностей между криптовалютными биржами.
-Проект использует библиотеку `ccxt` для взаимодействия с биржами и `FastStream` для управления сообщениями через
-брокер (RabbitMQ).
+Асинхронное приложение на Python для сбора данных о стаканах ордеров с криптовалютных бирж и поиска арбитражных групп.
 
 ## Основные возможности
 
-- Сбор данных о стаканах ордеров с нескольких бирж.
-- Поиск арбитражных групп (наборов пар) между биржами.
-- Поддержка прокси для обхода ограничений бирж.
-- Асинхронная архитектура на основе `asyncio`.
-- Публикация найденных групп в очередь сообщений для дальнейшей обработки.
+- **Многобиржевой сбор данных** — одновременная работа с несколькими биржами (bybit, mexc, binance и др.)
+- **Группировка символов** — объединение торговых пар по группам
+- **Распределённая архитектура** — каждая биржа работает через пул менеджеров, обеспечивающий fair scheduling
+- **Прокси-поддержка** — конфигурация прокси для обхода ограничений бирж
+- **RabbitMQ интеграция** — обмен данными между компонентами через очереди сообщений
+
+## Архитектура
+
+```
+┌─────────────────┐
+│  Publisher      │  publish_task — периодический сбор рынков → группировка → публикация
+│  (groups queue) │
+└──────┬──────────┘
+       │  queue_groups
+       ▼
+┌─────────────────┐
+│  Subscriber     │  handle_groups — fetch orderbooks → публикация
+│  (groups queue) │
+└──────┬──────────┘
+       │  queue_orderbooks
+       ▼
+  [Downstream consumer]
+
+```
+
+### Компоненты
+
+| Компонент | Описание |
+|-----------|----------|
+| `src/main.py` | Точка входа, lifecycle-хуки FastStream (`on_startup`, `on_shutdown`) |
+| `src/factories.py` | Фабрика CCXT-бирж |
+| `src/adapters/ccxt_adapter.py` | Адаптер поверх ccxt.async_support, конвертация в DTO |
+| `src/services/managers.py` | `ExchangeManager` — управление набором бирж |
+| `src/utils.py` | `Pool[T]` — кольцевой пул для fair scheduling менеджеров |
+| `src/broker.py` | Конфигурация RabbitMQ, subscriber/publisher логика |
+| `src/config.py` | Настройки через `.env` (pydantic-settings) |
 
 ## Технологии
 
 - Python 3.10+
-- [ccxt](https://github.com/ccxt/ccxt) — для работы с криптовалютными биржами
-- [FastStream](https://faststream.airt.ai/) — фреймворк для работы с брокерами сообщений
-- Pydantic — для валидации и управления настройками
-- aio-pika — клиент RabbitMQ для Python
+- [ccxt](https://github.com/ccxt/ccxt) — унифицированный API к 100+ биржам
+- [FastStream](https://faststream.airt.ai/) — брокер сообщений (RabbitMQ)
+- [Pydantic](https://docs.pydantic.dev/) — валидация и конфигурация
+
 
 ## Установка
 
 ```bash
-# Клонировать репозиторий
-# git clone <репозиторий>
-
-cd arb-scanner
-
-# Создать виртуальное окружение
+# Виртуальное окружение
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# .venv\Scripts\activate     # Windows
+source .venv/bin/activate      # Linux / Mac
+# .venv\Scripts\activate       # Windows
 
-# Установить зависимости
+# Зависимости
 pip install -r requirements.txt
 ```
 
 ## Настройка
 
-Используйте `.test.env` как шаблон. Пример содержимого:
+Скопируйте `.test.env` и отредактируйте `.env`:
 
 ```env
-EXCHANGES=binance,bybit,okx
-PROXIES=http://proxy1:port,http://proxy2:port
-RABBITMQ_URL=amqp://user:password@localhost:5672/
-MIN_LENGTH=5
-TIMEOUT=30
-PUBLISH=True
+EXCHANGES=bybit,mexc,binance
+PROXIES=http://proxy1:8080,http://proxy2:8080,
+
+RMQ_HOST=localhost
+RMQ_PORT=5672
+RMQ_USER=guest
+RMQ_PASS=guest
+
+MIN_LENGTH=100      # мин. сообщений в очереди перед публикацией
+TIMEOUT=30          # интервал publish-задания (сек)
 ```
 
 ## Запуск
 
 ```bash
-# Запуск сканера с публикацией групп
-python -m src.main --publish
+# С публикацией групп 
+faststream run src.main:app --publish
 
-# Запуск без публикации (только логика)
-python -m src.main
+# Без публикаций
+faststream run src.main:app
 ```
 
-## Структура проекта
+### Контексты запуска
+
+| Режим | Флаг | Поведение |
+|-------|------|-----------|
+| Publisher + Consumer | `--publish` | Подписка на `groups` + `orderbooks`, периодический publish |
+| Consumer only | *(по умолчанию)* | Только подписка на `groups`, обработка и публикация orderbooks |
+
+## Тесты
+
+```bash
+pytest
+```
+
+## Структура
 
 ```
-src/
-├── adapters/        # Адаптеры для бирж (через CCXT)
-├── core/            # Основные модели и исключения
-├── services/        # Логика управления и публикации
-├── config.py        # Настройки приложения
-├── broker.py        # Конфигурация брокера сообщений
-├── main.py          # Точка входа и запуск приложения
-└── utils.py         # Вспомогательные утилиты (например, пул менеджеров)
+.
+├── src/
+│   ├── adapters/
+│   │   └── ccxt_adapter.py      # CCXT адаптер + DTO маппинг
+│   ├── core/
+│   │   ├── exceptions.py        # Пользовательские исключения
+│   │   └── models.py            # Pydantic DTO (Exchange, Symbol, Orderbook)
+│   ├── services/
+│   │   └── managers.py          # ExchangeManager
+│   ├── broker.py                # RabbitMQ конфигурация
+│   ├── config.py                # Settings (.env)
+│   ├── factories.py             # Фабрика бирж
+│   ├── main.py                  # FastStream app + lifecycle
+│   └── utils.py                 # Pool, get_groups
+├── tests/
+│   ├── conftest.py
+│   ├── mock_data.py             # Моковые данные для тестов
+│   ├── test_adapters.py
+│   ├── test_factories.py
+│   ├── test_managers.py
+│   └── test_utils.py
+├── Dockerfile
+├── pytest.ini
+├── requirements.txt
+└── sandbox.py
 ```
 
-## Лицензия
+## Pipeline данных
 
-Проект не имеет лицензии (уточните при использовании).
+1. **Market Loading** — `CCXTAdapter.load_markets()` загружает все символы биржи
+2. **Grouping** — `get_groups()` группирует символы по `(base, settle/quote)`
+3. **Publishing** — группы публикуются в `queue_groups` (если `MIN_LENGTH` достигнут)
+4. **Orderbook Fetching** — `handle_groups` получает группы, запрашивает стаканы со всех бирж
+5. **Orderbook Publishing** — собранные `OrderbookDTO` публикуются в `queue_orderbooks`
