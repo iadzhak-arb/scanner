@@ -43,7 +43,7 @@
 
 ## Технологии
 
-- Python 3.10+
+- Python 3.12+
 - [ccxt](https://github.com/ccxt/ccxt) — унифицированный API к 100+ биржам
 - [FastStream](https://faststream.airt.ai/) — брокер сообщений (RabbitMQ)
 - [Pydantic](https://docs.pydantic.dev/) — валидация и конфигурация
