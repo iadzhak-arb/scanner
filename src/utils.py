@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
-from typing import Protocol
 
 from src.core.models import SymbolGroupDTO
 from src.services.managers import MarketsData

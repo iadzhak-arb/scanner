@@ -70,6 +70,9 @@ async def cancel_tasks():
     await asyncio.gather(*_background_tasks, return_exceptions=True)
     _background_tasks.clear()
 
+
 @app.after_shutdown
-async def after_shutdown(managers: Annotated[list[ExchangeManager], Context()]):
+async def after_shutdown(
+        managers: Annotated[list[ExchangeManager], Context()]
+):
     await asyncio.gather(*[manager.close() for manager in managers])

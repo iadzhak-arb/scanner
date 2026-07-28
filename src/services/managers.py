@@ -35,7 +35,11 @@ class ExchangeManager:
             for exchange, market in zip(self.exchanges.values(), responses)
         ]
 
-    async def fetch_orderbooks(self, symbol: SymbolDTO, exchanges: list[ExchangeDTO]) -> OrderbooksData:
+    async def fetch_orderbooks(
+            self,
+            symbol: SymbolDTO,
+            exchanges: list[ExchangeDTO]
+    ) -> OrderbooksData:
         responses = await asyncio.gather(*[
             self.exchanges[ex.id].fetch_orderbook(symbol)
             for ex in exchanges
