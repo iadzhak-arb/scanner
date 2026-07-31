@@ -138,3 +138,73 @@ pytest
 3. **Publishing** — группы публикуются в `queue_groups` (если `MIN_LENGTH` достигнут)
 4. **Orderbook Fetching** — `handle_groups` получает группы, запрашивает стаканы со всех бирж
 5. **Orderbook Publishing** — собранные `OrderbookDTO` публикуются в `queue_orderbooks`
+
+## Формат сообщений
+
+### `queue_groups`
+
+**Тип сообщения:** `list[SymbolGroupDTO]` — список групп, образующих arbitrage-возможность.
+
+Каждая группа объединяет один и тот же `(base, quote/settle)` по разным биржам и/или типам рынка.
+
+```json
+[
+  {
+    "symbol": {
+      "id": "BTC/USDT:USDT",
+      "market": "swap",
+      "base": "BTC",
+      "quote": "USDT",
+      "settle": "USDT"
+    },
+    "exchanges": [
+      { "id": "bybit", "name": "Bybit" },
+      { "id": "binance", "name": "Binance" }
+    ]
+  }
+]
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `symbol.id` | `str` | Торговый символ в формате CCXT (например `BTC/USDT:USDT`) |
+| `symbol.market` | `str` | Тип рынка: `spot`, `swap`, `future` |
+| `symbol.base` | `str` | Базовая валюта |
+| `symbol.quote` | `str` | Котировочная валюта |
+| `symbol.settle` | `str \| null` | Валюта расчётов (для фьючерсов/свапов) |
+| `exchanges` | `list` | Список бирж, где доступен данный символ |
+
+---
+
+### `queue_orderbooks`
+
+**Тип сообщения:** `list[OrderbookDTO]` — агрегированные стаканы ордеров.
+
+```json
+[
+  {
+    "symbol": {
+      "id": "BTC/USDT:USDT",
+      "market": "swap",
+      "base": "BTC",
+      "quote": "USDT",
+      "settle": "USDT"
+    },
+    "exchange": {
+      "id": "bybit",
+      "name": "Bybit"
+    },
+    "timestamp": 1720000000.0,
+    "asks": [[21000.5, 1.25], [21001.0, 0.50]],
+    "bids": [[20999.5, 2.00], [20998.0, 0.75]]
+  }
+]
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `symbol` | `SymbolDTO` | Описание торгового символа |
+| `exchange` | `ExchangeDTO` | Биржа-источник стакана |
+| `timestamp` | `float` | Метка времени стакана (Unix epoch, секунды) |
+| `asks` | `list[list[float \| int]]` | Аск-сторона: `[price, amount]` |
+| `bids` | `list[list[float \| int]]` | Бид-сторона: `[price, amount]` |
