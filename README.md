@@ -1,135 +1,132 @@
-# Arb Scanner
+# Scanner service
 
 Асинхронное приложение на Python (FastStream) для сбора данных о стаканах ордеров с криптовалютных бирж и поиска арбитражных групп.
 
-## Основные возможности
+- CCXT Publisher для загрузки маркетов, группировки символов и публикации в RabbitMQ.
+- CCXT Consumer & Publisher получение групп символов из очереди и загрузка стаканов order books очередь RAbbitMQ.
+
+
+
+## Навигация
+- [Стек технологий](#стек-технологий)
+- [Возможности](#возможности)
+- [Структура проекта](#структура-проекта)
+- [Быстрый старт](#быстрый-старт)
+- [Pipeline данных](#pipeline-данных)
+- [Формат сообщений](#формат-сообщений)
+
+
+
+## Стек технологий
+
+- **FastStream** — брокер сообщений (RabbitMQ)
+- **CCXT** — унифицированный API к 100+ биржам
+- **Pydantic Settings** — конфигурация через `.env`
+- **Pydantic DTO** — валидация и типизация сообщений
+
+
+## Возможности
 
 - **Многобиржевой сбор данных** — одновременная работа с несколькими биржами (bybit, mexc, binance и др.)
-- **Группировка символов** — объединение торговых пар по группам
+- **Группировка символов** — объединение торговых пар по `(base, quote/settle)` группам
 - **Распределённая архитектура** — каждая биржа работает через пул менеджеров, обеспечивающий fair scheduling
 - **Прокси-поддержка** — конфигурация прокси для обхода ограничений бирж
 - **RabbitMQ интеграция** — обмен данными между компонентами через очереди сообщений
+- **Pipeline данных** — market loading → grouping → orderbook fetching → aggregation
+- **DTO-контракты** — строгая типизация сообщений через Pydantic models
+- **Два режима запуска** — Publisher+Consumer или Consumer only
 
-## Архитектура
 
-```
-┌─────────────────┐
-│  Publisher      │  publish_task — периодический сбор рынков → группировка → публикация
-│  (groups queue) │
-└──────┬──────────┘
-       │  queue_groups
-       ▼
-┌─────────────────┐
-│  Subscriber     │  handle_groups — fetch orderbooks → публикация
-│  (groups queue) │
-└──────┬──────────┘
-       │  queue_orderbooks
-       ▼
-  [Downstream consumer]
+## Структура проекта
 
 ```
+src/
+├── main.py          # FastStream application + lifecycle hooks
+├── config.py        # Config via pydantic-settings
+├── broker.py        # RabbitMQ publisher/subscriber logic
+├── factories.py     # CCXT exchange factory
+├── utils.py         # Pool[T] for fair scheduling, get_groups
+├── adapters/        # Exchange adapters
+│   └── ccxt_adapter.py  # CCXT adapter + DTO mapping
+├── core/            # Core models & exceptions
+│   ├── models.py    # Pydantic DTO (Exchange, Symbol, Orderbook)
+│   └── exceptions.py # Custom exceptions
+├── services/        # Business logic
+│   └── managers.py  # ExchangeManager
+├── tests/           # Unit tests
+│   ├── conftest.py
+│   ├── mock_data.py
+│   ├── test_adapters.py
+│   ├── test_factories.py
+│   ├── test_managers.py
+│   └── test_utils.py
+├── sandbox.py       # Interactive sandbox
+├── Dockerfile
+├── pytest.ini
+└── requirements.txt
+```
 
-### Компоненты
 
-| Компонент | Описание |
-|-----------|----------|
-| `src/main.py` | Точка входа, lifecycle-хуки FastStream (`on_startup`, `on_shutdown`) |
-| `src/factories.py` | Фабрика CCXT-бирж |
-| `src/adapters/ccxt_adapter.py` | Адаптер поверх ccxt.async_support, конвертация в DTO |
-| `src/services/managers.py` | `ExchangeManager` — управление набором бирж |
-| `src/utils.py` | `Pool[T]` — кольцевой пул для fair scheduling менеджеров |
-| `src/broker.py` | Конфигурация RabbitMQ, subscriber/publisher логика |
-| `src/config.py` | Настройки через `.env` (pydantic-settings) |
-
-## Технологии
-
-- Python 3.12+
-- [ccxt](https://github.com/ccxt/ccxt) — унифицированный API к 100+ биржам
-- [FastStream](https://faststream.airt.ai/) — брокер сообщений (RabbitMQ)
-- [Pydantic](https://docs.pydantic.dev/) — валидация и конфигурация
-
-
-## Установка
-
+## Настройки
+Переменные окружения:
 ```bash
-# Виртуальное окружение
-python -m venv .venv
-source .venv/bin/activate      # Linux / Mac
-# .venv\Scripts\activate       # Windows
-
-# Зависимости
-pip install -r requirements.txt
-```
-
-## Настройка
-
-Скопируйте `.test.env` и отредактируйте `.env`:
-
-```env
+# Exchanges & Proxies
 EXCHANGES=bybit,mexc,binance
 PROXIES=http://proxy1:8080,http://proxy2:8080,
 
+# RabbitMQ
 RMQ_HOST=localhost
 RMQ_PORT=5672
 RMQ_USER=guest
 RMQ_PASS=guest
 
+# Pipeline
 MIN_LENGTH=100      # мин. сообщений в очереди перед публикацией
 TIMEOUT=30          # интервал publish-задания (сек)
 ```
 
-## Запуск
 
+## Быстрый старт
+
+### 1. Установка
+
+Копировать репозиторий
 ```bash
-# С публикацией групп 
-faststream run src.main:app --publish
+git clone https://github.com/iadzhak-arb/scanner.git
+cd scanner
+```
 
-# Без публикаций
+Настроить окружение
+```bash
+# Создайте виртуальное окружение
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# Установите зависимости
+pip install -r requirements.txt
+```
+
+Запустить RabbitMQ
+```bash
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 \
+  rabbitmq:3-management
+```
+
+### 2. Запуск
+
+> Перед запуском необходимо настроить переменные окружения.
+
+Publisher + Consumer
+```bash
+faststream run src.main:app --publish
+```
+
+Consumer only
+```bash
 faststream run src.main:app
 ```
 
-### Контексты запуска
-
-| Режим | Флаг | Поведение |
-|-------|------|-----------|
-| Publisher + Consumer | `--publish` | Подписка на `groups` + `orderbooks`, периодический publish |
-| Consumer only | *(по умолчанию)* | Только подписка на `groups`, обработка и публикация orderbooks |
-
-## Тесты
-
-```bash
-pytest
-```
-
-## Структура
-
-```
-.
-├── src/
-│   ├── adapters/
-│   │   └── ccxt_adapter.py      # CCXT адаптер + DTO маппинг
-│   ├── core/
-│   │   ├── exceptions.py        # Пользовательские исключения
-│   │   └── models.py            # Pydantic DTO (Exchange, Symbol, Orderbook)
-│   ├── services/
-│   │   └── managers.py          # ExchangeManager
-│   ├── broker.py                # RabbitMQ конфигурация
-│   ├── config.py                # Settings (.env)
-│   ├── factories.py             # Фабрика бирж
-│   ├── main.py                  # FastStream app + lifecycle
-│   └── utils.py                 # Pool, get_groups
-├── tests/
-│   ├── conftest.py
-│   ├── mock_data.py             # Моковые данные для тестов
-│   ├── test_adapters.py
-│   ├── test_factories.py
-│   ├── test_managers.py
-│   └── test_utils.py
-├── Dockerfile
-├── pytest.ini
-├── requirements.txt
-└── sandbox.py
-```
 
 ## Pipeline данных
 
@@ -138,6 +135,7 @@ pytest
 3. **Publishing** — группы публикуются в `queue_groups` (если `MIN_LENGTH` достигнут)
 4. **Orderbook Fetching** — `handle_groups` получает группы, запрашивает стаканы со всех бирж
 5. **Orderbook Publishing** — собранные `OrderbookDTO` публикуются в `queue_orderbooks`
+
 
 ## Формат сообщений
 
@@ -208,3 +206,4 @@ pytest
 | `timestamp` | `float` | Метка времени стакана (Unix epoch, секунды) |
 | `asks` | `list[list[float \| int]]` | Аск-сторона: `[price, amount]` |
 | `bids` | `list[list[float \| int]]` | Бид-сторона: `[price, amount]` |
+
