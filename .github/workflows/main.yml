@@ -1,5 +1,5 @@
-name: Testing workflow
-run-name: Testing workflow by ${{ github.actor }}
+name: Main workflow
+run-name: Main workflow by ${{ github.actor }}
 on:
   push:
     branches:
@@ -39,3 +39,24 @@ jobs:
           pip install -r requirements.txt
       - name: Test with pytest
         run: pytest
+
+  build:
+    name: Build and push to DockerHub
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+      - name: Set up Doker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push to Docker
+        uses: docker/build-push-action@v4
+        with:
+          context: ./
+          push: true
+          tags: ${{ secrets.DOCKER_USER }}/arb-scanner:latest

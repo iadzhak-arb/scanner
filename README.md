@@ -1,12 +1,18 @@
 # Scanner service
+[![CI/CD Pipline](https://github.com/iadzhak-arb/scanner/actions/workflows/main.yml/badge.svg)](https://github.com/iadzhak-arb/scanner/actions)
 > Является частью платформы [Arb Scanner](https://github.com/iadzhak-arb)
 
 Асинхронное приложение на Python (FastStream) для сбора данных о стаканах ордеров с криптовалютных бирж и поиска арбитражных групп.
 
 - CCXT Publisher для загрузки маркетов, группировки символов и публикации в RabbitMQ.
-- CCXT Consumer & Publisher получение групп символов из очереди и загрузка стаканов order books очередь RAbbitMQ.
+- CCXT Consumer & Publisher получение групп символов из очереди и загрузка стаканов order books очередь RabbitMQ.
 
+## CI/CD
 
+При каждом `push` и `pull_request` в ветку `main` GitHub Actions запускает пайплайн:
+- **Линтинг и проверка типов:** flake8
+- **Тестирование:** pytest
+- **Сборка и публикация Docker-образа:** успешный пайплайн публикует образ в Docker Hub [iadzhak/arb-scanner](https://hub.docker.com/repository/docker/iadzhak/arb-scanner)
 
 ## Навигация
 - [Стек технологий](#стек-технологий)
